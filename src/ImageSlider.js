@@ -55,9 +55,12 @@ export const ImageSlider = ({ title, slides }) => {
 };
 
 const styles = StyleSheet.create({
+  slide: {
+    position: 'absolute',
+  },
   container: {
+    overflow: 'hidden',
     flex: 1,
-    backgroundColor: 'blue'
   },
   title: {
     fontFamily: 'BebasNeue-Regular',
@@ -81,8 +84,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   imageStyle: {
-    height: '100%',
-    width: '100%',
+    height: WINDOW_HEIGHT,
+    width: WINDOW_WIDTH,
     top: 0,
   },
 });
