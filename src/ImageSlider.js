@@ -2,29 +2,140 @@
  * @flow
  * Created by Dima Portenko on 07.06.2020
  */
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, Image, Text, Dimensions } from 'react-native';
+
+import Animated, { Easing} from 'react-native-reanimated';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 
 const PATTERN = require('../assets/images/pattern.png');
 
+const ROTATE_DEGREE = Math.PI / 60;
+
+const {
+  Value,
+  Clock,
+  useCode,
+  block,
+  set,
+  startClock,
+  clockRunning,
+  timing,
+  cond,
+  stopClock,
+  call,
+  interpolate,
+  Extrapolate,
+} = Animated;
+
+const runTiming = (clock, opacities, index, callback, scales, rotates, translations, titleOpacities) => {
+  const prevIndex = index > 0 ? index - 1 : opacities.length - 1;
+  const state = {
+    finished: new Value(0),
+    position: new Value(0),
+    time: new Value(0),
+    frameTime: new Value(0),
+  };
+
+  const config = {
+    duration: 8000,
+    toValue: new Value(8),
+    easing: Easing.linear,
+  };
+
+  return block([
+    cond(
+      clockRunning(clock),
+      [
+        timing(clock, state, config),
+      ],
+      startClock(clock),
+    ),
+    // we run the step here that is going to update position
+    // if the animation is over we stop the clock
+    cond(state.finished, [
+        stopClock(clock),
+        call([], callback)
+      ], [
+        set(opacities[index], interpolate(state.position, {
+          inputRange: [0, 3],
+          outputRange: [0, 1],
+        })),
+        set(scales[index], interpolate(state.position, {
+          inputRange: [0, 3, 6],
+          outputRange: [1, 1.05, 1.1],
+          extrapolate: Extrapolate.CLAMP,
+        })),
+        set(rotates[index], interpolate(state.position, {
+          inputRange: [3, 6],
+          outputRange: [0, ROTATE_DEGREE],
+          extrapolate: Extrapolate.CLAMP,
+        })),
+        set(opacities[prevIndex], interpolate(state.position, {
+          inputRange: [0, 3],
+          outputRange: [1, 0],
+        })),
+        set(titleOpacities[index], interpolate(state.position, {
+          inputRange: [0, 2, 6, 7],
+          outputRange: [0, 1, 1, 0],
+          extrapolate: Extrapolate.CLAMP,
+        })),
+        set(translations[index], interpolate(state.position, {
+          inputRange: [0, 2, 6, 7],
+          outputRange: [200, 0, 0, -400],
+          extrapolate: Extrapolate.CLAMP,
+        })),
+      ]
+    ),
+    // we made the block return the updated position
+    state.position,
+  ]);
+}
+
+
 export const ImageSlider = ({ title, slides }) => {
+  const [index, setIndex] = useState(0);
+  const { opacities, clock, scales, rotates, translations, titleOpacities } = useMemo(() => ({
+    opacities: slides.map(() => (new Value(0))),
+    scales: slides.map(() => (new Value(0))),
+    rotates: slides.map(() => (new Value(0))),
+    clock: new Clock(),
+    titleOpacities: slides.map(() => (new Value(0))),
+    translations: slides.map(() => (new Value(0))),
+  }), []);
+
+  const next = () => {
+    setIndex((index + 1) % slides.length);
+  }
+
+  useCode(() => block([
+    runTiming(clock, opacities, index, next, scales, rotates, translations, titleOpacities)
+  ]), [index]);
 
   const renderSlides = () => slides.map((slide, i) => {
     return (
       <View style={styles.slide} key={i}>
-        <View>
+        <Animated.View
+          style={{
+            opacity: opacities[i],
+            transform: [{
+              scale: scales[i],
+              rotate: rotates[i],
+            }]
+          }}
+        >
           <Image
             style={styles.imageStyle}
             resizeMode="cover"
             source={slide.image}
           />
-        </View>
+        </Animated.View>
 
-        <View style={{
+        <Animated.View style={{
           ...StyleSheet.absoluteFillObject,
+          opacity: opacities[i],
         }}>
           <Image
             style={{
@@ -36,12 +147,18 @@ export const ImageSlider = ({ title, slides }) => {
             source={PATTERN}
             resizeMode="repeat"
           />
-        </View>
+        </Animated.View>
 
-
-        <View style={[styles.slideTitleWrap]}>
+        <Animated.View style={[
+          styles.slideTitleWrap, {
+            opacity: titleOpacities[i],
+            transform: [{
+              translateX: translations[i],
+            }]
+          }
+        ]}>
           <Text style={styles.slideTitle}>{slide.title?.toUpperCase()}</Text>
-        </View>
+        </Animated.View>
       </View>
     );
   });
